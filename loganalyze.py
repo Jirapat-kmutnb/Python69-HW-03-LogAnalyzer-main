@@ -1,72 +1,48 @@
-
-from collections import defaultdict
-from datetime import datetime
-
 def analyze_user_activity(log_file_path: str) -> dict:
-    user_actions = defaultdict(int)
-    action_counts = defaultdict(int)
-    user_sessions = defaultdict(list)
+    users = set()
+    action_counts = {}
+    user_total_duration = {} 
+    login_durations = []
 
-    with open(log_file_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            
-            # Splitting comma, tab, or space-separated log lines
-            parts = line.replace(',', ' ').split()
-            if len(parts) < 3:
+    with open(log_file_path, "r") as f: # open file 
+        for line in f: # loop through each line in the file
+            line = line.strip() # remove leading/trailing whitespace
+            if not line: # skip empty lines
                 continue
 
-            # Assuming log format: TIMESTAMP USER_ID ACTION
-            # Example timestamp format: 2026-09-04T10:00:00 or ISO/Unix format
-            timestamp_str, user_id, action = parts[0], parts[1], parts[2].lower()
+            parts = line.split() # split line into parts
+            if len(parts) != 4: # check if there are 4 parts
+                continue
 
-            action_counts[action] += 1
-            user_actions[user_id] += 1
+            timestamp, user_id, action, duration_str = parts # assign parts to variables
 
-            # Parse ISO timestamps or numeric epoch timestamps
             try:
-                dt = datetime.fromisoformat(timestamp_str)
+                duration = int(duration_str) # convert duration to integer
             except ValueError:
-                dt = datetime.fromtimestamp(float(timestamp_str))
-                
-            user_sessions[user_id].append((dt, action))
+                continue 
+            users.add(user_id) # add user to set
+            action_counts[action] = action_counts.get(action, 0) + 1 # increment action count
+            user_total_duration[user_id] = user_total_duration.get(user_id, 0) + duration # increment user total duration
 
-    # Determine most active user by total action count
-    most_active_user = max(user_actions, key=user_actions.get) if user_actions else None
+            if action == "login":
+                login_durations.append(duration)
 
-    # Calculate average session durations (time between login and logout)
-    session_durations = []
-    for user, logs in user_sessions.items():
-        logs.sort(key=lambda x: x[0])  # ensure chronological order
-        login_time = None
-        
-        for dt, action in logs:
-            if action == 'login':
-                login_time = dt
-            elif action == 'logout' and login_time:
-                duration = (dt - login_time).total_seconds()
-                session_durations.append(duration)
-                login_time = None
-
-    avg_session_time = (
-        sum(session_durations) / len(session_durations)
-        if session_durations else 0.0
-    )
+    total_users = len(users)
+    most_active_user = max(user_total_duration, key=user_total_duration.get) if user_total_duration else None
+    average_session_time = sum(login_durations) / len(login_durations) if login_durations else 0.0
 
     return {
-        'action_counts': dict(action_counts),
-        'average_session_time': round(avg_session_time, 1),
-        'most_active_user': most_active_user,
-        'total_users': len(user_actions)
+        "total_users": total_users,
+        "action_counts": action_counts,
+        "most_active_user": most_active_user,
+        "average_session_time": average_session_time,
     }
 
 if __name__ == "__main__":
     result = analyze_user_activity("activity.log")
     from pprint import pprint
     pprint(result)
-    
+
 # {'action_counts': {'login': 2, 'logout': 2, 'submit': 1, 'view': 2},
 #  'average_session_time': 160.0,
 #  'most_active_user': 'u002',
